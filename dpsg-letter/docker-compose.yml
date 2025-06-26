@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Your SvelteKit Frontend Application
+  frontend:
+    # IMPORTANT: Replace with your actual Docker Hub image name
+    image: severinsch/letter-frontend:latest
+    restart: unless-stopped
+
+
+  backend:
+    image: severinsch/letter-api:latest
+    restart: unless-stopped
+
+
+  # The Nginx Reverse Proxy
+  proxy:
+    image: nginx:1.25-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Mount your custom nginx config. :ro makes it read-only for security.
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount a volume for storing Let's Encrypt SSL certificates.
+      - ./certs:/etc/letsencrypt
+      # Mount a volume that Certbot (SSL tool) can write to for challenges.
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      # Tells Docker to start the frontend and backend before starting the proxy.
+      - frontend
+      - backend
+
+  certbot:
+    image: certbot/certbot
+
+    volumes:
+      - ./certs:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
