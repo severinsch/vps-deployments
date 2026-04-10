@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  personal-website:
+    image: severinsch/personal-website:tag
+    restart: unless-stopped
+    networks:
+      - proxy-tier
+
+networks:
+  proxy-tier:
+    external: true
