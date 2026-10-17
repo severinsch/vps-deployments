@@ -1,0 +1,66 @@
+# Docker keeps container logs forever by default; rotate them.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  material-frontend:
+    image: severinsch/material-frontend:latest
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      # The frontend forwards /api/* to the API, so only the frontend is reachable through nginx.
+      API_URL: "http://material-api:8080"
+      ORIGIN: "https://material.dpsg-langenbach.de"
+    depends_on:
+      - material-api
+    networks:
+      - proxy-tier
+      - material-internal
+
+  material-api:
+    image: severinsch/material-api:latest
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      DATABASE_URL: "jdbc:postgresql://material-db:5432/scout_material"
+      DATABASE_USER: "scout"
+      DATABASE_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      # The JVM would otherwise reserve up to a quarter of the host's RAM; the VPS has 4 GB and no swap.
+      JAVA_TOOL_OPTIONS: "-Xmx256m"
+    depends_on:
+      material-db:
+        condition: service_healthy
+    networks:
+      - material-internal
+
+  material-db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: "scout"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+      POSTGRES_DB: "scout_material"
+    volumes:
+      # Postgres 18+ keeps its data below a version-specific directory, so the parent is mounted.
+      # The API creates and migrates the schema (Flyway) when it starts.
+      - material_db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scout -d scout_material"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - material-internal
+
+volumes:
+  material_db_data:
+
+networks:
+  proxy-tier:
+    external: true
+  # API and database are not on the shared proxy network.
+  material-internal:
