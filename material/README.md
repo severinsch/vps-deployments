@@ -5,7 +5,8 @@ Stack for [material-frontend](https://github.com/severinsch/material-frontend) a
 
 - `material-frontend` (SvelteKit, port 3000) is the only service on `proxy-tier`. It forwards `/api/*` to the API.
 - `material-api` (Ktor, port 8080) and `material-db` (Postgres) are only on the stack's internal network.
-- There is no authentication yet: anyone who knows the address can change the data.
+- Users log in with username and password; accounts are created by admins, see "Accounts" below. nginx limits
+  `POST` to `/login` and `/setup` per IP (`proxy/nginx.conf`), in addition to the API's throttling of failed logins.
 
 ## Build and push images
 
@@ -64,6 +65,29 @@ shows why. While testing, the database can be reset with `docker compose down -v
 
 Before an update with a schema change, take a backup: `./backup-db.sh`.
 
+## Accounts
+
+**First admin:** on startup, if there is no platform admin, the API creates the user `admin` and logs a setup link
+until its password is set:
+
+```sh
+docker compose logs material-api | grep -i 'setup link'
+```
+
+Open the link, set the password, then create the tenants (Stämme) and accounts under "Administration". Admins pass
+each new account's setup link on themselves (no email).
+
+**Forgotten password:** admins of a Stamm create a new setup link on its members page. If the only platform admin
+forgot theirs, start the API once with a new link for them:
+
+```sh
+ADMIN_SETUP_LINK_FOR=<username> docker compose up -d --force-recreate material-api
+docker compose logs material-api | grep -i 'setup link'
+```
+
+After setting the password, run `docker compose up -d` once more: it recreates the container without the variable,
+which would otherwise log a new link on every restart.
+
 ## Backups
 
 Not set up yet (test phase). Once real data exists, enable the cron job below and copy the backups off the VPS.
@@ -90,6 +114,5 @@ docker compose exec -T material-db pg_restore -U scout -d scout_material --clean
   stale local builds and allows rolling back to an exact version (pin the tag in `docker-compose.yml`).
 - **Off-site backups:** backups on the VPS are lost with the VPS. Enable Hetzner's server backups, or copy
   `backups/` nightly to a Hetzner Storage Box (`rsync` over SSH).
-- **Authentication:** the API has none yet; until the app has a login, nginx basic auth would be a stopgap.
 - **Health check for the API:** a `/health` endpoint would let the frontend wait for the API on startup.
 
