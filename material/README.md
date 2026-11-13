@@ -108,8 +108,9 @@ restic password, the backups can't be decrypted. This repository is public: neve
 
 1. **Cloudflare** (R2): create the bucket `material-backups` with jurisdiction **EU** (not just a location hint). Under
    "Manage API tokens", create a token with "Object Read & Write" for this bucket only; note the access key ID, the
-   secret and the account ID. An EU bucket is only reachable through the `.eu.` endpoint; if `restic init` says Access
-   Denied, check the jurisdiction and the token's bucket first.
+   secret and the account ID. Under "Client IP Address Filtering", allow only the VPS's IPv4 address and its IPv6
+   range (`/64`; connections to R2 may use either). An EU bucket is only reachable through the `.eu.` endpoint; if
+   `restic init` says Access Denied, check the jurisdiction, the token's bucket and its IP filter first.
 2. **healthchecks.io:** create a check with schedule type "Cron", `15 3 * * *`, the VPS's timezone and a grace time
    of 1 hour; note the ping URL.
 3. **VPS:**
@@ -163,7 +164,8 @@ errors and leaves a partial database.
 ### Restore onto a fresh server
 
 Install Docker, clone this repository to `~/vps-deployments`, set up `proxy/` and the certificate (see "First
-deployment"), then:
+deployment"). The R2 token only accepts the old server's addresses: in Cloudflare (R2, "Manage API tokens"), add the new
+server's IPv4 address and IPv6 range to the token's IP filter, or restic gets Access Denied. Then:
 
 ```sh
 sudo apt install restic
